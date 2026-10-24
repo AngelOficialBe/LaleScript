@@ -11,16 +11,19 @@ local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 if not player then return end
--- Compatible fallback: not all executors expose gethui().
-local guiParent
-if type(gethui) == "function" then
-    local ok, result = pcall(gethui)
-    if ok and typeof(result) == "Instance" then guiParent = result end
+-- Display in PlayerGui first: CoreGui/gethui may be unavailable or invisible.
+local guiParent = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui", 10)
+if not guiParent then
+    warn("[RubyHub] PlayerGui unavailable: cannot display UI")
+    return
 end
-if not guiParent then guiParent = player:WaitForChild("PlayerGui") end
 
 -- Make re-execution idempotent: stop previous loops and disconnect listeners.
-local env = (type(getgenv) == "function" and getgenv()) or _G
+local env = _G
+if type(getgenv) == "function" then
+    local ok, candidate = pcall(getgenv)
+    if ok and type(candidate) == "table" then env = candidate end
+end
 if env.RubyHubCleanup then pcall(env.RubyHubCleanup) end
 
 local running = true
@@ -46,14 +49,19 @@ end
 
 local existing = guiParent:FindFirstChild("RubyGlassHub")
 if existing then existing:Destroy() end
+-- Remove older versions left in CoreGui, if accessible.
+pcall(function()
+    local previous = game:GetService("CoreGui"):FindFirstChild("RubyGlassHub")
+    if previous then previous:Destroy() end
+end)
 
 local screen = instance(guiParent, "ScreenGui", {
-    Name = "RubyGlassHub", ResetOnSpawn = false,
+    Name = "RubyGlassHub", ResetOnSpawn = false, Enabled = true, DisplayOrder = 1000,
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 })
 
 local base = instance(screen, "Frame", {
-    Size = UDim2.fromOffset(530, 345), Position = UDim2.new(.5, -265, .5, -172),
+    Size = UDim2.fromOffset(510, 340), Position = UDim2.new(.5, -255, .5, -170),
     BackgroundColor3 = Color3.fromRGB(22, 9, 15), BorderSizePixel = 0,
     Active = true
 })
@@ -86,11 +94,3 @@ instance(close, "UICorner", {CornerRadius = UDim.new(0, 6)})
 local content = instance(base, "ScrollingFrame", {
     Position = UDim2.fromOffset(12, 58), Size = UDim2.new(1, -24, 1, -96),
     BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3,
-    ScrollBarImageColor3 = Color3.fromRGB(225, 54, 91),
-    AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new()
-})
-instance(content, "UIListLayout", {Padding = UDim.new(0, 9), SortOrder = Enum.SortOrder.LayoutOrder})
-local status = instance(base, "TextLabel", {
-    Position = UDim2.new(0, 15, 1, -33), Size = UDim2.new(1, -30, 0, 25),
-    BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 11,
-    TextColor3 = Color3.fromRGB(255, 174, 190), TextXAlignment = Enum.TextXAlignment.Left,
